@@ -35,6 +35,12 @@ int main(void)
             fgets(data, size, stdin);
             write(arena, address, size, data);
             free(data);
+        } else if (strcmp(command, "MPROTECT") == 0) {
+            int8_t *prot = malloc(10);
+            uint64_t address;
+            scanf("%lu%s", &address, prot);
+            mprotect(arena, address, prot);
+            free(prot);
         } else if (strcmp(command, "DEALLOC_ARENA") == 0) {
             dealloc_arena(arena);
             break;

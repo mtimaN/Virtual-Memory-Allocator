@@ -96,6 +96,8 @@ void dealloc_arena(arena_t *arena)
 
 		list_t *minilist_ptr = ((block_t*)curr->data)->miniblock_list;
 		node_t *mini_curr = minilist_ptr->head;
+
+		// freeing every miniblock
 		for (int j = 1; j <= minilist_ptr->size; ++j) {
 			node_t *mini_tmp = mini_curr;
 			mini_curr = mini_curr->next;
@@ -115,8 +117,14 @@ void dealloc_arena(arena_t *arena)
 
 void alloc_block(arena_t *arena, const uint64_t address, const uint64_t size)
 {
-	if (address + size > arena->arena_size)
+	if (address > arena->arena_size) {
+		printf("The allocated address is outside the size of arena\n");
 		return;
+	}
+	if (address + size > arena->arena_size) {
+		printf("The end address is past the size of the arena\n");
+		return;
+	}
 	node_t *curr = arena->alloc_list->head;
 
 	// treating the add_first cases
@@ -153,7 +161,7 @@ void alloc_block(arena_t *arena, const uint64_t address, const uint64_t size)
 
 	// if the space between the 2 nodes is too small
 	if (i < arena->alloc_list->size - 1 && (address + size > ((block_t*)curr->next->data)->start_address)) {
-		printf("Memory occupied\n");
+		printf("This zone was already allocated\n");
 		return;
 	}
 	
@@ -276,13 +284,17 @@ void read(arena_t *arena, uint64_t address, uint64_t size)
 	while (i++ < arena->alloc_list->size - 1 && address > 
 	((block_t*)curr->data)->start_address)
 		curr = curr->next;
-
+	if (address != ((block_t*)curr->data)->start_address) {
+		printf("Invalid address for read\n");
+		return;
+	}
 	list_t *mini_list = ((block_t*)curr->data)->miniblock_list;
 	node_t *mini_curr = mini_list->head;
 	uint32_t check_size = 0;
 	i = 0;
 	while (i++ < mini_list->size && check_size < size) {
 		if (((miniblock_t*)mini_curr->data)->perm < 4) {
+			printf("Invalid permissions for read.\n");
 			break;
 		}
 		mini_curr = mini_curr->next;
@@ -319,12 +331,17 @@ void write(arena_t *arena, const uint64_t address, const uint64_t size, int8_t *
 	((block_t*)curr->data)->start_address)
 		curr = curr->next;
 
+	if (address != ((block_t*)curr->data)->start_address) {
+		printf("Invalid address for write\n");
+		return;
+	}
 	list_t *mini_list = ((block_t*)curr->data)->miniblock_list;
 	node_t *mini_curr = mini_list->head;
 	int check_size = 0;
 	i = 0;
 	while (i++ < mini_list->size && check_size < size) {
 		if (((miniblock_t*)mini_curr->data)->perm % 4 < 2) {
+			printf("Invalid permission for write.\n");
 			break;
 		}
 		mini_curr = mini_curr->next;
@@ -350,25 +367,44 @@ void write(arena_t *arena, const uint64_t address, const uint64_t size, int8_t *
 
 void pmap(const arena_t *arena)
 {
-	printf("Total memory: %lu\n", arena->arena_size);
-	printf("Free memory: :shrug:\n");
-	printf("Number of allocated blocks: %u\n", arena->alloc_list->size);
-	printf("Number of miniblocks: :shrug: \n\n");
-
+	printf("Total memory: 0x%lX\n", arena->arena_size);
 	node_t *curr = arena->alloc_list->head;
+	uint64_t free_mem = arena->arena_size, no_miniblocks = 0;
+	for (int i = 1; i <= arena->alloc_list->size; ++i) {
+		free_mem -= ((block_t*)curr->data)->size;
+		no_miniblocks += ((block_t*)curr->data)->miniblock_list->size;
+		curr = curr->next;
+	}
+	printf("Free memory: 0x%lX\n", free_mem);
+	printf("Number of allocated blocks: %u\n", arena->alloc_list->size);
+	printf("Number of miniblocks: %lu \n\n", no_miniblocks);
+	curr = arena->alloc_list->head;
 	for (int i = 1; i <= arena->alloc_list->size; ++i) {
 
 		printf("Block %d begin\n", i);
 		uint64_t s_address = ((block_t*)curr->data)->start_address;
 		uint64_t e_address = ((block_t*)curr->data)->size + s_address;
-		printf("Zone: %lu - %lu\n", s_address, e_address);
+		printf("Zone: 0x%lX - 0x%lX\n", s_address, e_address);
 
 		list_t *minilist_ptr = ((block_t*)curr->data)->miniblock_list;
 		node_t *mini_curr = minilist_ptr->head;
 		for (int j = 1; j <= minilist_ptr->size; ++j) {
 			s_address = ((miniblock_t*)mini_curr->data)->start_address;
 			e_address = ((miniblock_t*)mini_curr->data)->size + s_address;
-			printf("Miniblock %d:\t\t%lu\t\t%lu\n", j, s_address, e_address);
+			printf("Miniblock %d:\t\t%lu\t\t%lu\t\t| ", j, s_address, e_address);
+
+			// printing permissions
+			if (((miniblock_t*)mini_curr->data)->perm > 3)
+				printf("R");
+			else printf("-");
+			if (((miniblock_t*)mini_curr->data)->perm  % 4 > 1)
+				printf("W");
+			else printf("-");
+			if (((miniblock_t*)mini_curr->data)->perm % 2 == 1)
+				printf("X");
+			else printf("-");
+			printf("\n");
+
 			mini_curr = mini_curr->next;
 		}
 		printf("Block %d end\n\n", i);
@@ -378,5 +414,29 @@ void pmap(const arena_t *arena)
 
 void mprotect(arena_t *arena, uint64_t address, int8_t *permission)
 {
+	node_t *curr = arena->alloc_list->head;
+	int i = 0;
+	while (i++ < arena->alloc_list->size - 1 && address > 
+	((block_t*)curr->data)->start_address)
+		curr = curr->next;
 
+	list_t *mini_list = ((block_t*)curr->data)->miniblock_list;
+	node_t *mini_curr = mini_list->head;
+	int check_size = 0;
+	i = 0;
+	while (i++ < mini_list->size - 1 && address >
+	((miniblock_t*)mini_curr->data)->start_address)
+		mini_curr = mini_curr->next;
+	if (address != ((miniblock_t*)mini_curr->data)->start_address)
+		printf("Address not found\n");
+
+	if (strcmp(permission, "PROT_NONE") == 0)
+		((miniblock_t*)mini_curr->data)->perm = 0;
+	if (strcmp(permission, "PROT_READ") == 0)
+		((miniblock_t*)mini_curr->data)->perm |= (1<<2);
+	if (strcmp(permission, "PROT_WRITE") == 0)
+		((miniblock_t*)mini_curr->data)->perm |= (1<<1);
+	if (strcmp(permission, "PROT_EXEC") == 0)
+		((miniblock_t*)mini_curr->data)->perm |= 1;
+	printf("Permission changed to %u\n", ((miniblock_t*)mini_curr->data)->perm);
 }
