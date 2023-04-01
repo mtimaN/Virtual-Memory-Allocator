@@ -32,7 +32,7 @@ int main(void)
             scanf("%lu%lu", &address, &size);
             int8_t *data = malloc(size + 1);
             scanf(" ");
-            fgets(data, size, stdin);
+            fgets((char*)data, size, stdin);
             write(arena, address, size, data);
             free(data);
         } else if (strcmp(command, "MPROTECT") == 0) {
@@ -42,9 +42,9 @@ int main(void)
             mprotect(arena, address, prot);
             free(prot);
         } else if (strcmp(command, "DEALLOC_ARENA") == 0) {
-            dealloc_arena(arena);
             break;
-        }
+        } else printf("Invalid command. Please try again.\n");
     }
+    dealloc_arena(arena);
     return 0;
 }
