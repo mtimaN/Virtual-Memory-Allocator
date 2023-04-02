@@ -30,9 +30,9 @@ int main(void)
         } else if (strcmp(command, "WRITE") == 0) {
             uint64_t address, size;
             scanf("%lu%lu", &address, &size);
-            int8_t *data = malloc(size + 1);
             scanf(" ");
-            fgets((char*)data, size, stdin);
+            int8_t *data = malloc(size + 1);
+            fgets((char*)data, size + 1, stdin);
             write(arena, address, size, data);
             free(data);
         } else if (strcmp(command, "MPROTECT") == 0) {
