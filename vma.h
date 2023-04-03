@@ -2,8 +2,8 @@
 #include <inttypes.h>
 #include <stddef.h> 
 typedef struct node_t{
-   void *data;
-   struct node_t *prev, *next;
+	void *data;
+	struct node_t *prev, *next;
 }node_t;
 
 typedef struct {
@@ -12,16 +12,16 @@ typedef struct {
 } list_t;
 
 typedef struct {
-   uint64_t start_address; 
-   size_t size; 
-   list_t* miniblock_list;
+	uint64_t start_address; 
+	size_t size; 
+	list_t* miniblock_list;
 } block_t;
 
 typedef struct {
-   uint64_t start_address;
-   size_t size;
-   uint8_t perm;
-   void* rw_buffer;
+	uint64_t start_address;
+	size_t size;
+	uint8_t perm;
+	void* rw_buffer;
 } miniblock_t;
 
 typedef struct {
