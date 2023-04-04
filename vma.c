@@ -143,7 +143,7 @@ void alloc_block(arena_t *arena, const uint64_t address, const uint64_t size)
 		node_t *new = add_newblock(curr, address);
 		add_miniblock(new, address, size);
 		arena->alloc_list->size++;
-		arena->alloc_list->head = new;
+		curr = arena->alloc_list->head;
 		// if new block is adjacent to old head
 		if (address + size == ((block_t*)curr->data)->start_address) {
 			((block_t*)new->data)->size += ((block_t*)curr->data)->size;
@@ -153,6 +153,7 @@ void alloc_block(arena_t *arena, const uint64_t address, const uint64_t size)
 			free(curr);
 			arena->alloc_list->size--;
 		}
+		arena->alloc_list->head = new;
 		return;
 	}
 	// curr will be right before the position where we want to insert
@@ -176,6 +177,7 @@ void alloc_block(arena_t *arena, const uint64_t address, const uint64_t size)
 		node_t *new = add_newblock(curr, address);
 		arena->alloc_list->size++;
 		add_miniblock(new, address, size);
+		curr = new;
 	}
 
 	// if two blocks are next to eachother
@@ -459,7 +461,6 @@ void mprotect(arena_t *arena, uint64_t address, int8_t *permission)
 	((block_t*)curr->data)->start_address) {
 		curr = curr->next;
 	}
-
 	list_t *mini_list = ((block_t*)curr->data)->miniblock_list;
 	node_t *mini_curr = mini_list->head;
 
@@ -474,10 +475,10 @@ void mprotect(arena_t *arena, uint64_t address, int8_t *permission)
 		return;
 	}
 	((miniblock_t*)mini_curr->data)->perm = 0;
-	if (strcmp((char*)permission, "PROT_READ") == 0)
+	if (strstr((char*)permission, "PROT_READ"))
 		((miniblock_t*)mini_curr->data)->perm |= (1<<2);
-	if (strcmp((char*)permission, "PROT_WRITE") == 0)
+	if (strstr((char*)permission, "PROT_WRITE"))
 		((miniblock_t*)mini_curr->data)->perm |= (1<<1);
-	if (strcmp((char*)permission, "PROT_EXEC") == 0)
+	if (strstr((char*)permission, "PROT_EXEC"))
 		((miniblock_t*)mini_curr->data)->perm |= 1;
 }
