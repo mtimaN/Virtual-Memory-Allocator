@@ -31,14 +31,11 @@ int main(void)
 			uint64_t address, size;
 			scanf("%lu%lu", &address, &size);
 			getc(stdin);
-			int8_t *data = calloc(1, size + 2), *buffer = calloc(1, size + 1);
-			while(strlen((char*)data) < size) {
-				fgets((char*)buffer, size + 1, stdin);
-				strcat((char*)data, (char*)buffer);
-			}
+			int8_t *data = malloc(size);
+			for (uint64_t i = 0; i < size; ++i)
+				*(data + i) = getc(stdin);
 			write(arena, address, size, data);
 			free(data);
-			free(buffer);
 		} else if (strcmp(command, "MPROTECT") == 0) {
 			int8_t *prot = malloc(50);
 			uint64_t address;

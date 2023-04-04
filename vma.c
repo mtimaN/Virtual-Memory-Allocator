@@ -12,6 +12,7 @@ void add_miniblock(node_t *curr, const uint64_t address, const uint64_t size)
 	((miniblock_t*)new->data)->start_address = address;
 	((miniblock_t*)new->data)->size = size;
 	((miniblock_t*)new->data)->perm = 6;
+	((miniblock_t*)new->data)->rw_buffer = NULL;
 	// linking the new miniblock
 	if (((block_t*)curr->data)->miniblock_list->size == 0) {
 		// new block
@@ -45,6 +46,7 @@ node_t *add_newblock(node_t *curr, const uint64_t address)
 	if (curr) {
 		new->prev = curr;
 		new->next = curr->next;
+		curr->next->prev = new;
 		curr->next = new;
 	} else {
 		// first node
@@ -150,6 +152,8 @@ void alloc_block(arena_t *arena, const uint64_t address, const uint64_t size)
 			combine_blocks(((block_t*)new->data), ((block_t*)curr->data));
 			free(((block_t*)curr->data)->miniblock_list);
 			free(((block_t*)curr->data));
+			curr->next->prev = new;
+			new->next = curr->next;
 			free(curr);
 			arena->alloc_list->size--;
 		}
@@ -263,7 +267,7 @@ void free_block(arena_t *arena, const uint64_t address)
 		mini_curr->prev->next = mini_list->head;
 		mini_list->head->prev = mini_curr->prev;
 
-		node_t *new = malloc(sizeof(node_t*));
+		node_t *new = malloc(sizeof(node_t));
 		new->data = second_block;
 		new->prev = curr;
 		new->next = curr->next;
@@ -276,11 +280,11 @@ void free_block(arena_t *arena, const uint64_t address)
 	free(mini_curr->data);
 	free(mini_curr);
 	if (mini_list->size == 0) {
-		free(mini_list);
 		if (curr == arena->alloc_list->head)
 			arena->alloc_list->head = curr->next;
 		curr->prev->next = curr->next;
 		curr->next->prev = curr->prev;
+		free(mini_list);
 		free(curr->data);
 		free(curr);
 		arena->alloc_list->size--;
@@ -317,7 +321,6 @@ void read(arena_t *arena, uint64_t address, uint64_t size)
 
 	node_t *start_pos = mini_curr;
 	uint32_t check_size = offset;
-	int8_t *buffer = malloc(size + 1);
 	i--;
 	while (i++ < mini_list->size && check_size < size) {
 		if (((miniblock_t*)mini_curr->data)->perm < 4) {
@@ -333,11 +336,12 @@ void read(arena_t *arena, uint64_t address, uint64_t size)
 	}
 	mini_curr = start_pos;
 	uint64_t read = 0;
+	int8_t *buffer = malloc(size + 1);
 	while (new_size) {
 		miniblock_t *info = mini_curr->data;
 		uint64_t chunk = info->size - offset;
-		if (info->size - offset > size)
-			chunk = size;
+		if (info->size - offset > new_size)
+			chunk = new_size;
 		memcpy(buffer + read, info->rw_buffer + offset, chunk);
 		read += chunk;
 		new_size -= chunk;
@@ -395,8 +399,8 @@ void write(arena_t *arena, const uint64_t address, const uint64_t size, int8_t *
 		miniblock_t *info = mini_curr->data;
 		info->rw_buffer = malloc(info->size);
 		uint64_t chunk = info->size - offset;
-		if (chunk > size)
-			chunk = size;
+		if (chunk > new_size)
+			chunk = new_size;
 		memcpy(info->rw_buffer + offset, data + written, chunk);
 		written += chunk;
 		new_size -= chunk;

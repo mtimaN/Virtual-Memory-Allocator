@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS=-Wall -Wextra -Werror
+CFLAGS=-g -Wall -Wextra -Werror -std=c99
 
 build: vma.o main.o
 	$(CC) vma.o main.o -o vma
