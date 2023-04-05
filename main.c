@@ -40,8 +40,8 @@ int main(void)
 			int8_t *prot = malloc(50);
 			uint64_t address;
 			scanf("%lu", &address);
-			fgets((char*)prot, 50, stdin);
-			prot[strlen((char*)prot) - 1] = '\0';
+			fgets((char *)prot, 50, stdin);
+			prot[strlen((char *)prot) - 1] = '\0';
 			mprotect(arena, address, prot);
 			free(prot);
 		} else if (strcmp(command, "DEALLOC_ARENA") == 0) {
