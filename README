@@ -1,0 +1,65 @@
+# README Tema 1 SD - Virtual Memory Allocator
+# Mantu Matei-Cristian 312CA
+
+## Description
+This program acts as a Virtual Memory Allocator, with the user being able to
+allocate, free, write and read data saved as blocks. The blocks are
+**virtually** allocated in an arena, the actual space being allocated only when
+data is written inside the blocks. If two or more blocks are next to eachother,
+they become miniblocks, part of the block containing them. Evidently, the
+actual addresses of the blocks on the RAM do not correspond with the addresses
+displayed.
+## How does it work?
+The blocks are stored using a doubly linked, inside every block there is
+another doubly linked list, storing the miniblocks.
+After starting the program, it should receive the following command:
+
+    `ALLOC_ARENA <size>` - it "allocates" the arena where the blocks will be
+    stored. Then, the following commands may be used:
+    
+    `ALLOC_BLOCK <address> <size>` - it adds a block to the arena, at the
+    address specified. If the block starts at the end of another block, it
+    becomes a miniblock, part of that block. Then, the program checks whether
+    the new (mini)block ends where the next block would start, in that case the
+    blocks are concatenated, forming just one block. Error messages are
+    displayed if zone where the block should be allocated is not free or it
+    is outside the arena.
+    
+    `FREE_BLOCK <address>` - it frees the miniblock at the specified address.
+    If it is in the middle of a block, the block is split into two. If the
+    deleted miniblock is alone inside a block, the block is deleted as well,
+    and the block list is relinked. Error messages are displayed if the free
+    block doesnt exist.
+    
+    `READ <address> <size>` - it gets the <size> characters from the buffers
+    stored inside each miniblock. And saves it into one, big buffer which is
+    printed to stdout. If <size> characters aren't available to be read, it
+    reads the max number of characters possible and prints a message. If none,
+    it prints an error message. For implementing it, I first checked the size
+    available for reading and then I used memcpy to copy every miniblock into
+    the buffer. Also, if the <address> doesn't correspond to a start_address,
+    an offset is used.
+    Note: inside test 34 there are some weird uses of READ. The program reads
+    from a block which wasn't previously written. I figured from the tests
+    that if I just print a newline the output is marked as correct, but I
+    don't think that this was intended.
+    
+    `WRITE <address> <size> <data>` - it reads <size> characters from stdin and
+    saves it in a buffer. Then it checks how much can be written at address.
+    If less than <size> characters, it prints a message. If none, it prints an
+    error message. The implementation is similar to the read function.
+    
+    `PMAP` - it prints information about the arena in the requested format.
+    Done by iterating through each list. Note: The original framework provided
+    didn't have a field inside the arena struct for counting the numbers of
+    miniblocks, so I didn't add one. This resulted in an additional iteration
+    through the list.
+    
+    `DEALLOC_ARENA` - frees all the allocated memory and stops the program
+    
+    BONUS:
+    `MPROTECT <address> <permissions>` - it receives a string of permissions
+    which is then translated into the new set of permissions. The permissions
+    for each miniblock is saved in a binary format inside a byte variable.
+    Each permission corresponds to one bit. Each permission is set using a
+    mask.
