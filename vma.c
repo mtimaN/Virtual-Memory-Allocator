@@ -1,3 +1,4 @@
+// Copyright Mantu Matei-Cristian 312CA 2022-2023
 #include "vma.h"
 #include <stdlib.h>
 #include <stdio.h>
@@ -70,13 +71,14 @@ void combine_blocks(block_t *first, block_t *second)
 	first->miniblock_list->head->prev->next =
 	second->miniblock_list->head;
 
+	node_t *tmp = first->miniblock_list->head->prev;
 	// 1st block's head -> 2nd block's tail;
 	first->miniblock_list->head->prev =
 	second->miniblock_list->head->prev;
 
 	// 2nd block's head -> 1st block's tail
 	second->miniblock_list->head->prev =
-	first->miniblock_list->head->prev;
+	tmp;
 }
 
 arena_t *alloc_arena(const uint64_t size)
@@ -115,6 +117,59 @@ void dealloc_arena(arena_t *arena)
 	free(arena);
 }
 
+void add_new_head(arena_t *arena, const uint64_t address, const uint64_t size)
+{
+	node_t *curr = arena->alloc_list->head;
+	if (address + size > ((block_t *)curr->data)->start_address) {
+		printf("This zone was already allocated.\n");
+		return;
+	}
+	if (curr)
+		curr = curr->prev;
+	node_t *new = add_newblock(curr, address);
+	add_miniblock(new, address, size);
+	arena->alloc_list->size++;
+	curr = arena->alloc_list->head;
+	// if new block is adjacent to old head
+	if (address + size == ((block_t *)curr->data)->start_address) {
+		((block_t *)new->data)->size += ((block_t *)curr->data)->size;
+		combine_blocks(((block_t *)new->data), ((block_t *)curr->data));
+		free(((block_t *)curr->data)->miniblock_list);
+		free(((block_t *)curr->data));
+		curr->next->prev = new;
+		new->next = curr->next;
+		free(curr);
+		arena->alloc_list->size--;
+	}
+	arena->alloc_list->head = new;
+}
+
+void delete_head(node_t *curr, node_t *mini_curr, list_t *mini_list)
+{
+	// old start_address gets shifted
+	((block_t *)curr->data)->start_address +=
+	((miniblock_t *)mini_curr->data)->size;
+	// size is decreased
+	((block_t *)curr->data)->size -= ((miniblock_t *)mini_curr->data)->size;
+
+	// relinking
+	mini_list->head = mini_curr->next;
+	mini_curr->next->prev = mini_curr->prev;
+	mini_curr->prev->next = mini_curr->next;
+	mini_list->size--;
+}
+
+void delete_tail(node_t *curr, node_t *mini_curr, list_t *mini_list)
+{
+	// size is decreased
+	((block_t *)curr->data)->size -= ((miniblock_t *)mini_curr->data)->size;
+
+	// relinking
+	mini_curr->next->prev = mini_curr->prev;
+	mini_curr->prev->next = mini_curr->next;
+	mini_list->size--;
+}
+
 void alloc_block(arena_t *arena, const uint64_t address, const uint64_t size)
 {
 	if (address >= arena->arena_size) {
@@ -135,28 +190,7 @@ void alloc_block(arena_t *arena, const uint64_t address, const uint64_t size)
 		return;
 	}
 	if (address < ((block_t *)curr->data)->start_address) {
-		if (address + size > ((block_t *)curr->data)->start_address) {
-			printf("This zone was already allocated.\n");
-			return;
-		}
-		if (curr)
-			curr = curr->prev;
-		node_t *new = add_newblock(curr, address);
-		add_miniblock(new, address, size);
-		arena->alloc_list->size++;
-		curr = arena->alloc_list->head;
-		// if new block is adjacent to old head
-		if (address + size == ((block_t *)curr->data)->start_address) {
-			((block_t *)new->data)->size += ((block_t *)curr->data)->size;
-			combine_blocks(((block_t *)new->data), ((block_t *)curr->data));
-			free(((block_t *)curr->data)->miniblock_list);
-			free(((block_t *)curr->data));
-			curr->next->prev = new;
-			new->next = curr->next;
-			free(curr);
-			arena->alloc_list->size--;
-		}
-		arena->alloc_list->head = new;
+		add_new_head(arena, address, size);
 		return;
 	}
 	// curr will be right before the position where we want to insert
@@ -164,18 +198,20 @@ void alloc_block(arena_t *arena, const uint64_t address, const uint64_t size)
 	while (i++ < arena->alloc_list->size - 1 && address >
 			((block_t *)curr->next->data)->start_address)
 		curr = curr->next;
+
 	// if the space between the 2 nodes is too small
 	if (address < ((block_t *)curr->data)->start_address +
 					((block_t *)curr->data)->size) {
 		printf("This zone was already allocated.\n");
 		return;
 	}
-	if (i < arena->alloc_list->size - 1 &&
+	if (i < arena->alloc_list->size &&
 		(address + size > ((block_t *)curr->next->data)->start_address)) {
 		printf("This zone was already allocated.\n");
 		return;
 	}
-	if (address == ((block_t *)curr->data)->start_address + ((block_t *)curr->data)->size) {
+	if (address == ((block_t *)curr->data)->start_address +
+					((block_t *)curr->data)->size) {
 		add_miniblock(curr, address, size);
 	} else {
 		node_t *new = add_newblock(curr, address);
@@ -187,6 +223,7 @@ void alloc_block(arena_t *arena, const uint64_t address, const uint64_t size)
 	if (address + size == ((block_t *)curr->next->data)->start_address) {
 		((block_t *)curr->data)->size += ((block_t *)curr->next->data)->size;
 		combine_blocks(((block_t *)curr->data), ((block_t *)curr->next->data));
+
 		// free the 2nd block
 		free(((block_t *)curr->next->data)->miniblock_list);
 		free(((block_t *)curr->next->data));
@@ -206,14 +243,14 @@ void free_block(arena_t *arena, const uint64_t address)
 		return;
 	}
 	uint64_t i = 0;
-	while (i++ < arena->alloc_list->size - 1 && address > 
+	while (i++ < arena->alloc_list->size - 1 && address >
 	((block_t *)curr->data)->start_address + ((block_t *)curr->data)->size)
 		curr = curr->next;
 	list_t *mini_list = ((block_t *)curr->data)->miniblock_list;
 	node_t *mini_curr = mini_list->head;
 	uint64_t new_size = 0, no_items = 0;
 	i = 0;
-	while (i++ < mini_list->size - 1 && address >
+	while (i++ < mini_list->size && address >
 	((miniblock_t *)mini_curr->data)->start_address) {
 		new_size += ((miniblock_t *)mini_curr->data)->size;
 		no_items++;
@@ -227,29 +264,17 @@ void free_block(arena_t *arena, const uint64_t address)
 	}
 
 	if (mini_curr == mini_list->head) {
-		((block_t *)curr->data)->start_address += ((miniblock_t *)mini_curr->data)->size;
-		((block_t *)curr->data)->size -= ((miniblock_t *)mini_curr->data)->size;
-
-		// relinking
-		mini_list->head = mini_curr->next;
-		mini_curr->next->prev = mini_curr->prev;	
-		mini_curr->prev->next = mini_curr->next;
-		mini_list->size--;
+		delete_head(curr, mini_curr, mini_list);
 	} else if (mini_curr == mini_list->head->prev) {
-		((block_t *)curr->data)->size -= ((miniblock_t *)mini_curr->data)->size;
-
-		// relinking
-		mini_curr->next->prev = mini_curr->prev;	
-		mini_curr->prev->next = mini_curr->next;
-		mini_list->size--;
+		delete_tail(curr, mini_curr, mini_list);
 	} else {
-
 		// splitting into 2 blocks
 		block_t *second_block = malloc(sizeof(block_t));
 		second_block->start_address =
 		((miniblock_t *)mini_curr->data)->start_address +
 		((miniblock_t *)mini_curr->data)->size;
-		second_block->size = ((block_t *)curr->data)->size - new_size - ((miniblock_t *)mini_curr->data)->size;
+		second_block->size = ((block_t *)curr->data)->size -
+							new_size - ((miniblock_t *)mini_curr->data)->size;
 		second_block->miniblock_list = malloc(sizeof(list_t));
 		second_block->miniblock_list->size = mini_list->size - no_items - 1;
 		mini_list->size = no_items;
@@ -257,9 +282,9 @@ void free_block(arena_t *arena, const uint64_t address)
 		((block_t *)curr->data)->size = new_size;
 		// linking the 2 lists
 		// second list
-		mini_list->head->prev->next = mini_curr->next;
-		mini_curr->next->prev = mini_list->head->prev;
 		second_block->miniblock_list->head = mini_curr->next;
+		second_block->miniblock_list->head->prev = mini_list->head->prev;
+		mini_list->head->prev->next = second_block->miniblock_list->head;
 		// first list
 		mini_curr->prev->next = mini_list->head;
 		mini_list->head->prev = mini_curr->prev;
@@ -272,6 +297,8 @@ void free_block(arena_t *arena, const uint64_t address)
 		curr->next = new;
 		arena->alloc_list->size++;
 	}
+
+	// freeing the deleted block
 	if (((miniblock_t *)mini_curr->data)->rw_buffer)
 		free(((miniblock_t *)mini_curr->data)->rw_buffer);
 	free(mini_curr->data);
@@ -286,6 +313,7 @@ void free_block(arena_t *arena, const uint64_t address)
 		free(curr);
 		arena->alloc_list->size--;
 	}
+
 	if (arena->alloc_list->size == 0)
 		arena->alloc_list->head = NULL;
 }
@@ -307,9 +335,10 @@ void read(arena_t *arena, uint64_t address, uint64_t size)
 	node_t *mini_curr = mini_list->head;
 	i = 0;
 	while (i++ < mini_list->size && address >
-	((miniblock_t *)mini_curr->data)->start_address + ((miniblock_t *)mini_curr->data)->size)
+	((miniblock_t *)mini_curr->data)->start_address +
+	((miniblock_t *)mini_curr->data)->size)
 		mini_curr = mini_curr->next;
-	
+
 	uint64_t offset = address - ((miniblock_t *)mini_curr->data)->start_address;
 	if (offset >= ((miniblock_t *)mini_curr->data)->size) {
 		printf("Invalid address for read.\n");
@@ -317,7 +346,9 @@ void read(arena_t *arena, uint64_t address, uint64_t size)
 	}
 
 	node_t *start_pos = mini_curr;
-	uint32_t check_size = 0;
+	/* check_size will count how much memory is
+		available for the read operation */
+	uint64_t check_size = 0;
 	i--;
 	while (i++ < mini_list->size && check_size < size) {
 		if (((miniblock_t *)mini_curr->data)->perm < 4) {
@@ -329,17 +360,20 @@ void read(arena_t *arena, uint64_t address, uint64_t size)
 		offset = 0;
 	}
 	if (check_size < size) {
-		printf("Warning: size was bigger than the block size. Reading %u characters.\n", check_size);
+		printf("Warning: size was bigger than the block size. ");
+		printf("Reading %lu characters.\n", check_size);
 		new_size = check_size;
 	}
 	mini_curr = start_pos;
 	uint64_t read = 0;
 	offset = address - ((miniblock_t *)mini_curr->data)->start_address;
-	int8_t *buffer = malloc(size + 1);
+	int8_t *buffer = malloc(new_size);
+	// copying the memory from blocks into the buffer
 	while (new_size) {
 		miniblock_t *info = mini_curr->data;
 		if (!info->rw_buffer) {
 			free(buffer);
+			printf("\n");
 			return;
 		}
 		uint64_t chunk = info->size - offset;
@@ -351,12 +385,13 @@ void read(arena_t *arena, uint64_t address, uint64_t size)
 		mini_curr = mini_curr->next;
 		offset = 0;
 	}
-	buffer[read] = '\0';
-	printf("%s\n", buffer);
+	fwrite(buffer, sizeof(int8_t), read, stdout);
+	printf("\n");
 	free(buffer);
 }
 
-void write(arena_t *arena, const uint64_t address, const uint64_t size, int8_t *data)
+void write(arena_t *arena, const uint64_t address, const uint64_t size,
+		   int8_t *data)
 {
 	uint64_t i = 0;
 	uint64_t new_size = size;
@@ -373,15 +408,19 @@ void write(arena_t *arena, const uint64_t address, const uint64_t size, int8_t *
 	node_t *mini_curr = mini_list->head;
 	i = 0;
 	while (i++ < mini_list->size && address >
-	((miniblock_t *)mini_curr->data)->start_address + ((block_t *)curr->data)->size)
+	((miniblock_t *)mini_curr->data)->start_address +
+	((block_t *)curr->data)->size)
 		mini_curr = mini_curr->next;
-	
-	uint64_t offset = address - ((miniblock_t *)mini_curr->data)->start_address;
+
+	uint64_t offset = address -
+						((miniblock_t *)mini_curr->data)->start_address;
 	if (offset >= ((miniblock_t *)mini_curr->data)->size) {
 		printf("Invalid address for write.\n");
 		return;
 	}
 	node_t *start_pos = mini_curr;
+	/* check_size will count how much memory is
+		available for the write operation */
 	uint64_t check_size = 0;
 	i--;
 	while (i++ < mini_list->size && check_size < size) {
@@ -394,12 +433,14 @@ void write(arena_t *arena, const uint64_t address, const uint64_t size, int8_t *
 		offset = 0;
 	}
 	if (check_size < new_size) {
-		printf("Warning: size was bigger than the block size. Writing %lu characters.\n", check_size);
+		printf("Warning: size was bigger than the block size. ");
+		printf("Writing %lu characters.\n", check_size);
 		new_size = check_size;
 	}
 	offset = address - ((miniblock_t *)mini_curr->data)->start_address;
 	uint64_t written = 0;
 	mini_curr = start_pos;
+	// copying the memory from buffer into blocks
 	while (new_size) {
 		miniblock_t *info = mini_curr->data;
 		if (!info->rw_buffer)
@@ -431,8 +472,7 @@ void pmap(const arena_t *arena)
 
 	curr = arena->alloc_list->head;
 	for (uint64_t i = 1; i <= arena->alloc_list->size; ++i) {
-		printf("\n");
-		printf("Block %lu begin\n", i);
+		printf("\nBlock %lu begin\n", i);
 		uint64_t s_address = ((block_t *)curr->data)->start_address;
 		uint64_t e_address = ((block_t *)curr->data)->size + s_address;
 		printf("Zone: 0x%lX - 0x%lX\n", s_address, e_address);
@@ -443,7 +483,7 @@ void pmap(const arena_t *arena)
 			s_address = ((miniblock_t *)mini_curr->data)->start_address;
 			e_address = ((miniblock_t *)mini_curr->data)->size + s_address;
 			printf("Miniblock %lu:\t\t0x%lX\t\t-\t\t0x%lX\t\t| ",
-					j, s_address, e_address);
+				   j, s_address, e_address);
 
 			// printing permissions
 			if (((miniblock_t *)mini_curr->data)->perm > 3)
@@ -472,7 +512,7 @@ void mprotect(arena_t *arena, uint64_t address, int8_t *permission)
 	uint64_t i = 0;
 	// fetching the block
 	node_t *curr = arena->alloc_list->head;
-	while (i++ < arena->alloc_list->size - 1 && address > 
+	while (i++ < arena->alloc_list->size - 1 && address >
 	((block_t *)curr->data)->start_address) {
 		curr = curr->next;
 	}

@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS=-g -Wall -Wextra -Werror -std=c99
+CFLAGS=-Wall -Wextra -Werror -std=c99
 
 build: vma.o main.o
 	$(CC) vma.o main.o -o vma
@@ -12,6 +12,9 @@ main: main.c
 
 run_vma: vma
 	./vma
+
+pack:
+	zip -FSr 312CA_MantuMatei_Tema1.zip README Makefile *.c *.h
 
 .PHONY: clean
 
