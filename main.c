@@ -1,12 +1,15 @@
 // Mantu Matei-Cristian 312CA 2022-2023
 #include "vma.h"
+#include "utils.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+
 int main(void)
 {
 	arena_t *arena;
 	char *command = malloc(STRING_LEN);
+	DIE(!command, ERR);
 	while (scanf("%s", command)) {
 		if (strcmp(command, "DEALLOC_ARENA") == 0)
 			break;
@@ -34,11 +37,13 @@ int main(void)
 			scanf("%lu%lu", &address, &size);
 			fgetc(stdin);
 			int8_t *data = malloc(size);
+			DIE(!data, ERR);
 			fread(data, sizeof(int8_t), size, stdin);
 			write(arena, address, size, data);
 			free(data);
 		} else if (strcmp(command, "MPROTECT") == 0) {
 			int8_t *prot = malloc(STRING_LEN);
+			DIE(!prot, ERR);
 			uint64_t address;
 			scanf("%lu", &address);
 			fgets((char *)prot, 50, stdin);
