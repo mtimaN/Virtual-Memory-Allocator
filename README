@@ -1,5 +1,6 @@
+**Mantu Matei-Cristian** 
+**312CA**
 # README Tema 1 SD - Virtual Memory Allocator
-# Mantu Matei-Cristian 312CA
 
 ## Description
 This program acts as a Virtual Memory Allocator, with the user being able to
@@ -9,6 +10,7 @@ data is written inside the blocks. If two or more blocks are next to eachother,
 they become miniblocks, part of the block containing them. Evidently, the
 actual addresses of the blocks on the RAM do not correspond with the addresses
 displayed.
+
 ## How does it work?
 The blocks are stored using a doubly linked, inside every block there is
 another doubly linked list, storing the miniblocks.
@@ -39,10 +41,6 @@ After starting the program, it should receive the following command:
     available for reading and then I used memcpy to copy every miniblock into
     the buffer. Also, if the <address> doesn't correspond to a start_address,
     an offset is used.
-    Note: inside test 34 there are some weird uses of READ. The program reads
-    from a block which wasn't previously written. I figured from the tests
-    that if I just print a newline the output is marked as correct, but I
-    don't think that this was intended.
     
     `WRITE <address> <size> <data>` - it reads <size> characters from stdin and
     saves it in a buffer. Then it checks how much can be written at address.
@@ -63,3 +61,22 @@ After starting the program, it should receive the following command:
     for each miniblock is saved in a binary format inside a byte variable.
     Each permission corresponds to one bit. Each permission is set using a
     mask.
+
+## Notes
+Regarding the tests:
+
+Inside test 34 there are some weird uses of READ. The program reads from a
+block which wasn't previously written. I figured from the tests that if I
+just print a newline the output is marked as correct, but I don't think that
+this was intended.
+
+ - Do you think you could've made a better implementation?
+    As I stated in the PMAP description, I could've modified the structs
+    to improve the number of iterations through the blocks when printing but
+    I decided not to because I was unsure whether it was allowed to modify the
+    structs.
+    Secondly, I think my code is a bit messy and some code fragments get
+    repeated. It's an aspect that I have to work on as I get more experienced.
+ - What have you learned by doing this homework?
+    I don't think that I've learned something completely new but I've become
+    more familiar with linked lists.
